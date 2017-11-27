@@ -19,6 +19,7 @@ def path_leaf(path):
 
 def TsToMp4(Folder, OutPutFileName = ""):
 	Files = os.listdir(Folder)
+	Files.sort(key = lambda f: int(filter(str.isdigit, f)))
 	fullPathFiles = []
 	for i in Files:
 		path = os.path.join(Folder, i)
