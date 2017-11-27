@@ -14,7 +14,7 @@ Download Edumall là ứng dụng đơn giản giúp tải các video trên [edu
 * Tải các bài giảng còn thiếu trong một khóa học nhất định.
 ### 2.1 Tải các khóa học:
 * Chọn 1, enter
-* Nhập email và passowrd.
+* Nhập email và password.
 ![](img/Image_002.png)
 * Chọn một hoặc nhiều khóa học bất kì. Mặc định bỏ trống và Enter là tải về tất cả các khóa học. Ví dụ 1 hoặc 1,3,5 hoặc 1-10 hoặc bỏ trống.
 * Tiếp theo nhập số luồng tải về cùng lúc. Mặc định bỏ trống và enter là 5 luồng.( *Lời khuyên tùy vào tốc độ mạng mà chọn số luồng phù hợp, và số luồng nên <= 10*)
