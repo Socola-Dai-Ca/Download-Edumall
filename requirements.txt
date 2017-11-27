@@ -2,3 +2,4 @@ requests
 BeautifulSoup
 pycrypto
 lxml
+naturalsort
