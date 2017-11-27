@@ -5,6 +5,10 @@ import ntpath
 import subprocess
 import time
 import sys
+import glob
+import re
+from natsort import natsort
+
 reload(sys)
 sys.setdefaultencoding('utf-8')
 
@@ -19,7 +23,7 @@ def path_leaf(path):
 
 def TsToMp4(Folder, OutPutFileName = ""):
 	Files = os.listdir(Folder)
-	Files.sort(key = lambda f: int(filter(str.isdigit, f)))
+	Files = natsort(Files)
 	fullPathFiles = []
 	for i in Files:
 		path = os.path.join(Folder, i)
@@ -53,7 +57,7 @@ def TsToMp4(Folder, OutPutFileName = ""):
 			sys.stdout.write(line)
 			f.write(line.rstrip('\n'))
 
-	os.remove(concatFile)
+	#os.remove(concatFile)
 
 def ConvertInFolder(Folder):
 	for folderName, subfolders, filenames in os.walk(Folder):
