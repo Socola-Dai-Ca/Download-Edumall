@@ -459,7 +459,7 @@ def Example_1():
 	'''
 	In ra danh sách các khóa học và tên bài giảng ứng với từng khóa học
 	'''
-	Login('anhtl2505@gmail.com', '12345678')
+	Login('', '')
 	Courses = GetCourses()
 	print "Danh sach cac khoa hoc: "
 	for course in Courses:
