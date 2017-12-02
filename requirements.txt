@@ -1,5 +1,5 @@
 requests
 BeautifulSoup
 pycrypto
-lxml
+html5lib
 naturalsort

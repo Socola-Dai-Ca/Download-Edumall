@@ -57,7 +57,7 @@ def TsToMp4(Folder, OutPutFileName = ""):
 			sys.stdout.write(line)
 			f.write(line.rstrip('\n'))
 
-	#os.remove(concatFile)
+	os.remove(concatFile)
 
 def ConvertInFolder(Folder):
 	for folderName, subfolders, filenames in os.walk(Folder):

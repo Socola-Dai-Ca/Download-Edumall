@@ -17,6 +17,7 @@ import ffmpeg
 import threading
 import urllib
 import logging
+import ctypes
 
 reload(sys)
 sys.setdefaultencoding('utf-8')
@@ -26,6 +27,7 @@ g_session = requests.Session()
 g_UserAgent = 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:44.0) Gecko/20100101 Firefox/44.0'
 g_CurrentDir = os.getcwd()
 g_Key = None
+kernel32 = ctypes.windll.kernel32
 
 
 
@@ -109,7 +111,7 @@ def GetCourses():
 		logger.warning("Loi: %s - url: %s", e, url)
 		return []
 
-	soup = BeautifulSoup(r.content, 'lxml')
+	soup = BeautifulSoup(r.content, 'html5lib')
 	courses = soup.findAll('div', {'class': 'learning-card hidden-xs'})
 	if courses == []:
 		logger.warning("Loi Phan tich khoa hoc")
@@ -125,14 +127,14 @@ def GetCourses():
 
 	return UrlCourses
 
-def GetLessons(url):
+def GetLessions(url):
 	'''
-	Name..........: GetLessons
-	Description...: Get list of lessons
+	Name..........: GetLessions
+	Description...: Get list of Lessions
 	Parameters....: url - string. Url get from function GetCourses()
 	Return values.: Success - Returns list with 2 element:
-	................| list[0] - url of lesson
-	................| list[1] - name of lesson
+	................| list[0] - url of Lession
+	................| list[1] - name of Lession
 	..............: Failure - Returns list is None
 	Author........: Zero-0
 	'''
@@ -144,28 +146,48 @@ def GetLessons(url):
 		logger.warning("Loi: %s - url: %s", e, url)
 		return []
 
-	soup = BeautifulSoup(r.content, 'lxml')
-	Lessons = soup.findAll('div', {'class': 'row chap-item'})
-	if Lessons == []:
-		logger.warning("Loi phan tich bai giang")
+	soup = BeautifulSoup(r.content, 'html5lib')
+	Menu = soup.find('div', {'class' : 'menu'})
+	
+	buttonBuy = soup.findAll('a', {'class' : 'btn-red btn-buy'})
+	if buttonBuy:
+		print "Khoa hoc nay chua mua."
+		return [] 
+	if not Menu:
+		logger.warning('Loi Khong the phan tich toan bo bai giang nay')
 		return []
-
-	UrlLessons = []
-	for Lesson in Lessons:
-		name = Lesson.a.find('div', {'class': 'row no-margin'}).text.replace('\n', '')
-		if name == []:
-			logger.warning("Loi phan tich tieu de bai giang")
+	if not Menu.a.get('href'):
+		logger.warning('Loi Thieu url de phan tich bai giang')
+		return []
+	url = urljoin(url, Menu.a.get('href'))
+	try:
+		r = g_session.get(url)
+		if r.status_code != 200:
 			return []
-
+	except Exception as e:
+		logger.warning("Loi: %s - url: %s", e, url)
+		return []
+	soup = BeautifulSoup(r.content, 'html5lib')	
+	Lessions = soup.findAll('div', {'class' : re.compile('^row chap-item')})
+	if not Lessions:
+		logger.warning('Loi Khong the lay danh sach bai giang')
+		return []
+	UrlLessions = []
+	for lession in Lessions:
+		name = lession.find('div', {'class' : 'row no-margin'})
+		if not name:
+			logger.warning("Loi Phan tich Ten bai giang")
+			return []
+		name = name.text
 		for x in list('\/:*?"<>|'): name = name.replace(x, '')
-		UrlLessons.append((urljoin(url, Lesson.a['href']), NoAccentVietnamese(name).strip()))
-	return UrlLessons 
+		UrlLessions.append((urljoin(url, lession.a.get('href')), NoAccentVietnamese(name).strip()))
+	return UrlLessions 
 
-def GetUrlMasterPlaylistFromLesson(url, IsGetLinkDocument = True):
+def GetUrlMasterPlaylistFromLession(url, IsGetLinkDocument = True):
 	'''
-	Name..........: GetUrlMasterPlaylistFromLesson
+	Name..........: GetUrlMasterPlaylistFromLession
 	Description...: Get url of video
-	Parameters....: url - string. Url get from function GetLessons()
+	Parameters....: url - string. Url get from function GetLessions()
 				  : IsGetLinkDocument - Bool. Get urls of documnets in Lession.
 	Return values.: Success - Returns url Master Playlist and url of documents
 	..............: Failure - Returns None
@@ -199,7 +221,7 @@ def GetM3u8HD(url):
 	'''
 	Name..........: GetM3u8HD
 	Description...: Get url of video HD
-	Parameters....: url - string. Url get from function GetUrlMasterPlaylistFromLesson()
+	Parameters....: url - string. Url get from function GetUrlMasterPlaylistFromLession()
 	Return values.: Success - Returns url video HD
 	..............: Failure - Returns None
 	Author........: Zero-0
@@ -355,7 +377,7 @@ def DownloadDocument(url, pathLocal):
 	'''
 	Name..........: DownloadDocument
 	Description...: Download file document from server to client and save it
-	Parameters....: url - string. Url get from function GetUrlMasterPlaylistFromLesson()
+	Parameters....: url - string. Url get from function GetUrlMasterPlaylistFromLession()
 	..............: pathLocal - string. Path to directiory save file on client
 	Return values.: None
 	Author........: Zero-0
@@ -464,10 +486,10 @@ def Example_1():
 	print "Danh sach cac khoa hoc: "
 	for course in Courses:
 		print course[1]
-		Lessons = GetLessons(course[0])
+		Lessions = GetLessions(course[0])
 		print "  Cac bai giang: "
-		for lesson in Lessons:
-			print 4*" " + lesson[1]
+		for Lession in Lessions:
+			print 4*" " + Lession[1]
 		print 20*"="
 
 def Example_2():
@@ -481,16 +503,16 @@ def Example_2():
 	for course in Courses:
 		pathDirCourse = os.path.join(g_CurrentDir, course[1])
 		if not os.path.exists(pathDirCourse): os.mkdir(pathDirCourse)
-		Lessons = GetLessons(course[0])
-		for Lesson in Lessons:
-			print Lesson[1]
-			pathDirLesson = os.path.join(pathDirCourse, Lesson[1])
-			if not os.path.exists(pathDirLesson): os.mkdir(pathDirLesson)	
-			urlVideo = GetUrlMasterPlaylistFromLesson(Lesson[0])
+		Lessions = GetLessions(course[0])
+		for Lession in Lessions:
+			print Lession[1]
+			pathDirLession = os.path.join(pathDirCourse, Lession[1])
+			if not os.path.exists(pathDirLession): os.mkdir(pathDirLession)	
+			urlVideo = GetUrlMasterPlaylistFromLession(Lession[0])
 			urlM3u8HD =  GetM3u8HD(urlVideo)
-			listUrlTs = GetPlaylist(urlM3u8HD, True, pathDirLesson)
+			listUrlTs = GetPlaylist(urlM3u8HD, True, pathDirLession)
 			for urlTs in listUrlTs:
-				DownloadTs(urlTs, pathDirLesson)
+				DownloadTs(urlTs, pathDirLession)
 		print 20*"="
 
 def Download():
@@ -559,26 +581,31 @@ def Download():
 	Convert = raw_input('Convert Ts to Mp4 [yes]: ')
 	if (Convert == "") or (Convert.lower() == "yes") or (Convert.lower() == 'y'):
 		IsConvert = True
-	listPathDirLessons = []
+	listPathDirLessions = []
 	DirDownload = os.path.join(g_CurrentDir, "DOWNLOAD")
 	if not os.path.exists(DirDownload): os.mkdir(DirDownload)
 	print ""
 	print 30*"="
+	iCourses = 0
+	lenCourses = len(CoursesDownload)
 	for course in CoursesDownload:
 		print course[1]
-		pathDirCourse = os.path.join(DirDownload, removeCharacters(course[1], '.<>:"/\|?*'))
+		pathDirCourse = os.path.join(DirDownload, removeCharacters(course[1], '.<>:"/\|?*\r\n'))
 		if not os.path.exists(pathDirCourse): os.mkdir(pathDirCourse)
 		pathDirComplete = os.path.join(pathDirCourse, "complete")
 		if not os.path.exists(pathDirComplete): os.mkdir(pathDirComplete)
 		DirDocuments = os.path.join(pathDirComplete, "Documents")
 		if not os.path.exists(DirDocuments): os.mkdir(DirDocuments)
-		Lessons = GetLessons(course[0])
-		for Lesson in Lessons:
-			print Lesson[1]
-			pathDirLesson = os.path.join(pathDirCourse, removeCharacters(Lesson[1], '.<>:"/\|?*'))
-			if not os.path.exists(pathDirLesson): os.mkdir(pathDirLesson)	
-			listPathDirLessons.append(pathDirLesson)
-			urlVideo, urlDocuments = GetUrlMasterPlaylistFromLesson(Lesson[0])
+		Lessions = GetLessions(course[0])
+		iLessions = 1
+		lenLessions = len(Lessions)
+		for Lession in Lessions:
+			print Lession[1]
+			
+			pathDirLession = os.path.join(pathDirCourse, removeCharacters(Lession[1], '.<>:"/\|?*\r\n'))
+			if not os.path.exists(pathDirLession): os.mkdir(pathDirLession)	
+			listPathDirLessions.append(pathDirLession)
+			urlVideo, urlDocuments = GetUrlMasterPlaylistFromLession(Lession[0])
 			
 			if not urlVideo: continue
 			threadDownloadDocument = threading.Thread(target = DownloadDocuments, args = (urlDocuments, DirDocuments))
@@ -588,12 +615,12 @@ def Download():
 			urlM3u8HD =  GetM3u8HD(urlVideo)
 			if not urlM3u8HD: continue
 
-			listUrlTs = GetPlaylist(urlM3u8HD, True, pathDirLesson)
+			listUrlTs = GetPlaylist(urlM3u8HD, True, pathDirLession)
 			if not listUrlTs: continue
 			listOfThread = []
 			for i in range(NumOfThread):
 				l = listUrlTs[i::NumOfThread] 
-				thread = threading.Thread(target = DownloadTss, args = (l, pathDirLesson))
+				thread = threading.Thread(target = DownloadTss, args = (l, pathDirLession))
 				thread.setDaemon(True)
 				thread.start()
 				listOfThread.append(thread)
@@ -601,13 +628,20 @@ def Download():
 			for thread in listOfThread:
 				thread.join()
 			threadDownloadDocument.join()
-
+			
+			percentLessions = iLessions*1.0/lenLessions*100.0
+			kernel32.SetConsoleTitleA("Tong: %.2f%% - %s: %.2f%%" % (percentLessions/lenCourses + iCourses*1.0/lenCourses*100.0, course[1], percentLessions))
+			iLessions += 1
 			time.sleep(5)
+
 		print 40*"="
-	
+		iCourses += 1
+		kernel32.SetConsoleTitleA("Tong: %.2f%%" % (iCourses*1.0/lenCourses*100.0))
+		
+
 	if IsConvert:
 		print "Converting ..."
-		for i in listPathDirLessons:
+		for i in listPathDirLessions:
 			ffmpeg.ConvertInFolder(i)
 	
 def DownloadKeys():
@@ -667,14 +701,14 @@ def DownloadKeys():
 		print course[1]
 		pathDirCourse = os.path.join(DirDownload, removeCharacters(course[1]))
 		if not os.path.exists(pathDirCourse): os.mkdir(pathDirCourse)
-		Lessons = GetLessons(course[0])
-		for Lesson in Lessons:
-			print Lesson[1]
-			pathDirLesson = os.path.join(pathDirCourse, removeCharacters(Lesson[1]))
-			if not os.path.exists(pathDirLesson): os.mkdir(pathDirLesson)	
-			urlVideo, _ = GetUrlMasterPlaylistFromLesson(Lesson[0], False)
+		Lessions = GetLessions(course[0])
+		for Lession in Lessions:
+			print Lession[1]
+			pathDirLession = os.path.join(pathDirCourse, removeCharacters(Lession[1]))
+			if not os.path.exists(pathDirLession): os.mkdir(pathDirLession)	
+			urlVideo, _ = GetUrlMasterPlaylistFromLession(Lession[0], False)
 			urlM3u8HD =  GetM3u8HD(urlVideo)
-			listUrlTs = GetPlaylist(urlM3u8HD, True, pathDirLesson)
+			listUrlTs = GetPlaylist(urlM3u8HD, True, pathDirLession)
 		print 20*"="
 
 def DonwloadLessions():
@@ -717,18 +751,18 @@ def DonwloadLessions():
 	print 30*"="
 	print ""
 	print course[1]
-	pathDirCourse = os.path.join(DirDownload, removeCharacters(course[1], '.<>:"/\|?*'))
+	pathDirCourse = os.path.join(DirDownload, removeCharacters(course[1], '.<>:"/\|?*\r\n'))
 	if not os.path.exists(pathDirCourse): os.mkdir(pathDirCourse)
 	pathDirComplete = os.path.join(pathDirCourse, "complete")
 	if not os.path.exists(pathDirComplete): os.mkdir(pathDirComplete)
 	DirDocuments = os.path.join(pathDirComplete, "Documents")
 	if not os.path.exists(DirDocuments): os.mkdir(DirDocuments)
-	Lessons = GetLessons(course[0])
-	if not Lessons: return
+	Lessions = GetLessions(course[0])
+	if not Lessions: return
 	print "Danh sach cac bai giang: "
 	i = 1
-	for lesson in Lessons:
-		print "\t %d. %s" % (i, lesson[1])
+	for Lession in Lessions:
+		print "\t %d. %s" % (i, Lession[1])
 		i += 1
 
 	print "\n  Lua chon tai ve cac bai giang"
@@ -737,12 +771,12 @@ def DonwloadLessions():
 
 	rawOption = raw_input(' >> ')
 
-	LessonsDownload = Lessons
+	LessionsDownload = Lessions
 	if rawOption != "":
 		try:
-			LessonsDownload = []
+			LessionsDownload = []
 			option = rawOption.split(",")
-			lenLessons = len(Lessons)
+			lenLessions = len(Lessions)
 			for i in option:
 				if i.find("-") != -1:
 					c = i.split("-")
@@ -750,15 +784,15 @@ def DonwloadLessions():
 					c[0] -= 1
 					if c[0] < 0:
 						c[0] = 0
-					LessonsDownload += Lessons[c[0]:c[1]]
+					LessionsDownload += Lessions[c[0]:c[1]]
 				else:
 					index = int(i) - 1
-					if index > lenLessons - 1:
-						index = lenLessons - 1
+					if index > lenLessions - 1:
+						index = lenLessions - 1
 					if index < 0:
 						index = 0
-					LessonsDownload.append(Lessons[index])
-			LessonsDownload = list(set(LessonsDownload))
+					LessionsDownload.append(Lessions[index])
+			LessionsDownload = list(set(LessionsDownload))
 		except ValueError:
 			print ">>> Lam on nhap so."
 			return
@@ -777,13 +811,13 @@ def DonwloadLessions():
 	if (Convert == "") or (Convert.lower() == "yes") or (Convert.lower() == 'y'):
 		IsConvert = True
 
-	listPathDirLesson = []
-	for Lesson in LessonsDownload:
-		print Lesson[1]
-		pathDirLesson = os.path.join(pathDirCourse, removeCharacters(Lesson[1], '.<>:"/\|?*'))
-		if not os.path.exists(pathDirLesson): os.mkdir(pathDirLesson)
-		listPathDirLesson.append(pathDirLesson)	
-		urlVideo, urlDocuments = GetUrlMasterPlaylistFromLesson(Lesson[0])
+	listPathDirLession = []
+	for Lession in LessionsDownload:
+		print Lession[1]
+		pathDirLession = os.path.join(pathDirCourse, removeCharacters(Lession[1], '.<>:"/\|?*\r\n'))
+		if not os.path.exists(pathDirLession): os.mkdir(pathDirLession)
+		listPathDirLession.append(pathDirLession)	
+		urlVideo, urlDocuments = GetUrlMasterPlaylistFromLession(Lession[0])
 	
 		if not urlVideo: continue
 		threadDownloadDocument = threading.Thread(target = DownloadDocuments, args = (urlDocuments, DirDocuments))
@@ -793,12 +827,12 @@ def DonwloadLessions():
 		urlM3u8HD =  GetM3u8HD(urlVideo)
 		if not urlM3u8HD: continue
 
-		listUrlTs = GetPlaylist(urlM3u8HD, True, pathDirLesson)
+		listUrlTs = GetPlaylist(urlM3u8HD, True, pathDirLession)
 		if not listUrlTs: continue
 		listOfThread = []
 		for i in range(NumOfThread):
 			l = listUrlTs[i::NumOfThread] 
-			thread = threading.Thread(target = DownloadTss, args = (l, pathDirLesson))
+			thread = threading.Thread(target = DownloadTss, args = (l, pathDirLession))
 			thread.setDaemon(True)
 			thread.start()
 			listOfThread.append(thread)
@@ -813,7 +847,7 @@ def DonwloadLessions():
 	
 	if IsConvert:
 		print "Converting ..."
-		for i in listPathDirLesson:
+		for i in listPathDirLession:
 			ffmpeg.ConvertInFolder(i)
 	
 def DecryptFolder():
